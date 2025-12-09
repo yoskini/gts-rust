@@ -209,11 +209,9 @@ impl GtsStore {
                 }
                 Value::Object(new_map)
             }
-            Value::Array(arr) => Value::Array(
-                arr.iter()
-                    .map(Self::remove_x_gts_ref_fields)
-                    .collect(),
-            ),
+            Value::Array(arr) => {
+                Value::Array(arr.iter().map(Self::remove_x_gts_ref_fields).collect())
+            }
             _ => schema.clone(),
         }
     }
