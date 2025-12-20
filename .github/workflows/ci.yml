@@ -235,7 +235,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install pytest and dependencies
-        run: pip install pytest requests
+        run: pip install pytest requests httprunner
 
       - name: Start GTS server
         run: |
