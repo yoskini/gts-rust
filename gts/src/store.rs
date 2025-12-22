@@ -67,8 +67,9 @@ impl GtsStore {
     fn populate_from_reader(&mut self) {
         if let Some(ref mut reader) = self.reader {
             for entity in reader.iter() {
-                if let Some(ref gts_id) = entity.gts_id {
-                    self.by_id.insert(gts_id.id.clone(), entity);
+                // Use effective_id() which handles both GTS IDs and anonymous instance IDs
+                if let Some(id) = entity.effective_id() {
+                    self.by_id.insert(id, entity);
                 }
             }
         }
@@ -77,14 +78,9 @@ impl GtsStore {
     /// Registers an entity in the store.
     ///
     /// # Errors
-    /// Returns `StoreError::InvalidEntity` if the entity has no valid GTS ID.
+    /// Returns `StoreError::InvalidEntity` if the entity has no effective ID.
     pub fn register(&mut self, entity: GtsEntity) -> Result<(), StoreError> {
-        let id = entity
-            .gts_id
-            .as_ref()
-            .ok_or(StoreError::InvalidEntity)?
-            .id
-            .clone();
+        let id = entity.effective_id().ok_or(StoreError::InvalidEntity)?;
         self.by_id.insert(id, entity);
         Ok(())
     }
