@@ -1162,4 +1162,396 @@ mod tests {
             "gts:// prefix in 'id' field (not $id) should not be stripped"
         );
     }
+
+    // =============================================================================
+    // Tests for strict schema/instance distinction (commit 1b536ea)
+    // =============================================================================
+
+    #[test]
+    fn test_strict_schema_detection_requires_dollar_schema() {
+        // A document is a schema ONLY if it has $schema field
+        let content_with_schema = json!({
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "$id": "gts://gts.vendor.package.namespace.type.v1.0~",
+            "type": "object"
+        });
+
+        let entity_with_schema = GtsEntity::new(
+            None,
+            None,
+            &content_with_schema,
+            None,
+            None,
+            false,
+            String::new(),
+            None,
+            None,
+        );
+        assert!(
+            entity_with_schema.is_schema,
+            "Document with $schema should be a schema"
+        );
+
+        // Same content without $schema should be an instance
+        let content_without_schema = json!({
+            "$id": "gts://gts.vendor.package.namespace.type.v1.0~",
+            "type": "object"
+        });
+
+        let entity_without_schema = GtsEntity::new(
+            None,
+            None,
+            &content_without_schema,
+            None,
+            None,
+            false,
+            String::new(),
+            None,
+            None,
+        );
+        assert!(
+            !entity_without_schema.is_schema,
+            "Document without $schema should be an instance"
+        );
+    }
+
+    #[test]
+    fn test_well_known_instance_with_chained_gts_id() {
+        // Well-known instance: id field contains a GTS ID (possibly chained)
+        let content = json!({
+            "id": "gts.x.core.events.type.v1~abc.app._.custom_event.v1.2"
+        });
+
+        let cfg = GtsConfig::default();
+        let entity = GtsEntity::new(
+            None,
+            None,
+            &content,
+            Some(&cfg),
+            None,
+            false,
+            String::new(),
+            None,
+            None,
+        );
+
+        assert!(!entity.is_schema, "Should be an instance");
+        assert!(
+            entity.gts_id.is_some(),
+            "Well-known instance should have gts_id"
+        );
+        assert_eq!(
+            entity.gts_id.as_ref().unwrap().id,
+            "gts.x.core.events.type.v1~abc.app._.custom_event.v1.2"
+        );
+        assert_eq!(
+            entity.instance_id,
+            Some("gts.x.core.events.type.v1~abc.app._.custom_event.v1.2".to_owned())
+        );
+        // Schema ID should be extracted from chain (parent segment)
+        assert_eq!(
+            entity.schema_id,
+            Some("gts.x.core.events.type.v1~".to_owned())
+        );
+        assert_eq!(entity.selected_entity_field, Some("id".to_owned()));
+        assert_eq!(
+            entity.selected_schema_id_field,
+            Some("id".to_owned()),
+            "selected_schema_id_field should be set when schema_id is derived from id field"
+        );
+    }
+
+    #[test]
+    fn test_anonymous_instance_with_uuid_id() {
+        // Anonymous instance: id field contains UUID, type field has GTS schema ID
+        let content = json!({
+            "id": "7a1d2f34-5678-49ab-9012-abcdef123456",
+            "type": "gts.x.core.events.type.v1~x.commerce.orders.order_placed.v1.0~"
+        });
+
+        let cfg = GtsConfig::default();
+        let entity = GtsEntity::new(
+            None,
+            None,
+            &content,
+            Some(&cfg),
+            None,
+            false,
+            String::new(),
+            None,
+            None,
+        );
+
+        assert!(!entity.is_schema, "Should be an instance");
+        assert!(
+            entity.gts_id.is_none(),
+            "Anonymous instance should not have gts_id"
+        );
+        assert_eq!(
+            entity.instance_id,
+            Some("7a1d2f34-5678-49ab-9012-abcdef123456".to_owned())
+        );
+        assert_eq!(
+            entity.schema_id,
+            Some("gts.x.core.events.type.v1~x.commerce.orders.order_placed.v1.0~".to_owned())
+        );
+        assert_eq!(entity.selected_entity_field, Some("id".to_owned()));
+        assert_eq!(entity.selected_schema_id_field, Some("type".to_owned()));
+    }
+
+    #[test]
+    fn test_effective_id_for_schema() {
+        // For schemas, effective_id should return the GTS ID
+        let content = json!({
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "$id": "gts://gts.vendor.package.namespace.type.v1.0~"
+        });
+
+        let cfg = GtsConfig::default();
+        let entity = GtsEntity::new(
+            None,
+            None,
+            &content,
+            Some(&cfg),
+            None,
+            false,
+            String::new(),
+            None,
+            None,
+        );
+
+        assert_eq!(
+            entity.effective_id(),
+            Some("gts.vendor.package.namespace.type.v1.0~".to_owned())
+        );
+    }
+
+    #[test]
+    fn test_effective_id_for_well_known_instance() {
+        // For well-known instances, effective_id should return the GTS ID
+        let content = json!({
+            "id": "gts.x.core.events.type.v1~abc.app._.custom_event.v1.2"
+        });
+
+        let cfg = GtsConfig::default();
+        let entity = GtsEntity::new(
+            None,
+            None,
+            &content,
+            Some(&cfg),
+            None,
+            false,
+            String::new(),
+            None,
+            None,
+        );
+
+        assert_eq!(
+            entity.effective_id(),
+            Some("gts.x.core.events.type.v1~abc.app._.custom_event.v1.2".to_owned())
+        );
+    }
+
+    #[test]
+    fn test_effective_id_for_anonymous_instance() {
+        // For anonymous instances, effective_id should return the instance_id (UUID)
+        let content = json!({
+            "id": "7a1d2f34-5678-49ab-9012-abcdef123456",
+            "type": "gts.x.core.events.type.v1~x.commerce.orders.order_placed.v1.0~"
+        });
+
+        let cfg = GtsConfig::default();
+        let entity = GtsEntity::new(
+            None,
+            None,
+            &content,
+            Some(&cfg),
+            None,
+            false,
+            String::new(),
+            None,
+            None,
+        );
+
+        assert_eq!(
+            entity.effective_id(),
+            Some("7a1d2f34-5678-49ab-9012-abcdef123456".to_owned())
+        );
+    }
+
+    #[test]
+    fn test_effective_id_returns_none_when_no_id() {
+        // When there's no id field, effective_id should return None
+        let content = json!({
+            "type": "gts.vendor.package.namespace.type.v1.0~",
+            "name": "test"
+        });
+
+        let cfg = GtsConfig::default();
+        let entity = GtsEntity::new(
+            None,
+            None,
+            &content,
+            Some(&cfg),
+            None,
+            false,
+            String::new(),
+            None,
+            None,
+        );
+
+        assert_eq!(entity.effective_id(), None);
+    }
+
+    #[test]
+    fn test_well_known_instance_single_segment_no_schema_id() {
+        // Well-known instance with single-segment GTS ID (no chain)
+        // Should not have schema_id extracted from chain
+        let content = json!({
+            "id": "gts.vendor.package.namespace.type.v1.0"
+        });
+
+        let cfg = GtsConfig::default();
+        let entity = GtsEntity::new(
+            None,
+            None,
+            &content,
+            Some(&cfg),
+            None,
+            false,
+            String::new(),
+            None,
+            None,
+        );
+
+        assert!(!entity.is_schema);
+        assert!(entity.gts_id.is_some());
+        assert_eq!(
+            entity.gts_id.as_ref().unwrap().id,
+            "gts.vendor.package.namespace.type.v1.0"
+        );
+        // Single-segment ID doesn't have a parent schema in the chain
+        assert!(entity.schema_id.is_none());
+    }
+
+    #[test]
+    fn test_extract_ref_strings_normalizes_gts_uri_prefix() {
+        // $ref values with gts:// prefix should be normalized (prefix stripped)
+        let content = json!({
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "$id": "gts://gts.vendor.package.namespace.type.v1.0~",
+            "allOf": [
+                {"$ref": "gts://gts.other.package.namespace.type.v2.0~"}
+            ],
+            "properties": {
+                "nested": {
+                    "$ref": "gts://gts.third.package.namespace.type.v3.0~"
+                }
+            }
+        });
+
+        let cfg = GtsConfig::default();
+        let entity = GtsEntity::new(
+            None,
+            None,
+            &content,
+            Some(&cfg),
+            None,
+            false,
+            String::new(),
+            None,
+            None,
+        );
+
+        // schema_refs should contain normalized refs (without gts:// prefix)
+        assert!(!entity.schema_refs.is_empty());
+        assert!(
+            entity
+                .schema_refs
+                .iter()
+                .any(|r| r.id == "gts.other.package.namespace.type.v2.0~"),
+            "Ref should be normalized (gts:// prefix stripped)"
+        );
+        assert!(
+            entity
+                .schema_refs
+                .iter()
+                .any(|r| r.id == "gts.third.package.namespace.type.v3.0~"),
+            "Nested ref should be normalized"
+        );
+        // Should not contain the gts:// prefix
+        assert!(
+            !entity
+                .schema_refs
+                .iter()
+                .any(|r| r.id.starts_with("gts://")),
+            "No ref should contain gts:// prefix"
+        );
+    }
+
+    #[test]
+    fn test_extract_ref_strings_preserves_local_refs() {
+        // Local JSON Pointer refs should be preserved as-is
+        let content = json!({
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "$id": "gts://gts.vendor.package.namespace.type.v1.0~",
+            "$defs": {
+                "Base": {"type": "object"}
+            },
+            "allOf": [
+                {"$ref": "#/$defs/Base"}
+            ]
+        });
+
+        let cfg = GtsConfig::default();
+        let entity = GtsEntity::new(
+            None,
+            None,
+            &content,
+            Some(&cfg),
+            None,
+            false,
+            String::new(),
+            None,
+            None,
+        );
+
+        // Local refs should be in schema_refs
+        assert!(
+            entity.schema_refs.iter().any(|r| r.id == "#/$defs/Base"),
+            "Local ref should be preserved"
+        );
+    }
+
+    #[test]
+    fn test_instance_without_id_field_has_no_effective_id() {
+        // Instance without id field should have no effective_id
+        // This is the case that should return an error during registration
+        let content = json!({
+            "type": "gts.vendor.package.namespace.type.v1.0~",
+            "name": "test"
+        });
+
+        let cfg = GtsConfig::default();
+        let entity = GtsEntity::new(
+            None,
+            None,
+            &content,
+            Some(&cfg),
+            None,
+            false,
+            String::new(),
+            None,
+            None,
+        );
+
+        assert!(!entity.is_schema);
+        assert_eq!(
+            entity.effective_id(),
+            None,
+            "Instance without id should have no effective_id"
+        );
+        assert!(entity.instance_id.is_none());
+        assert!(entity.gts_id.is_none());
+    }
 }

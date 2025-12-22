@@ -2642,4 +2642,172 @@ mod tests {
         assert!(entity.file.is_some());
         assert_eq!(entity.list_sequence, Some(0));
     }
+
+    // =============================================================================
+    // Tests for instance registration validation (commit 7d1eade)
+    // =============================================================================
+
+    #[test]
+    fn test_add_entity_requires_id_for_instance() {
+        // Instance without id field should return error
+        let mut ops = GtsOps::new(None, None, 0);
+        let content = json!({
+            "type": "gts.vendor.package.namespace.type.v1.0~",
+            "name": "test"
+        });
+
+        let result = ops.add_entity(&content, false);
+        assert!(!result.ok, "Instance without id should fail");
+        assert!(
+            result.error.contains("Unable to detect ID"),
+            "Error should mention missing ID"
+        );
+        assert!(
+            result.error.contains("Instances must have an 'id' field"),
+            "Error should specify requirement for id field"
+        );
+    }
+
+    #[test]
+    fn test_add_entity_accepts_well_known_instance() {
+        // Well-known instance with GTS ID in id field should succeed
+        let mut ops = GtsOps::new(None, None, 0);
+        let content = json!({
+            "id": "gts.vendor.package.namespace.type.v1.0~instance.v1.0"
+        });
+
+        let result = ops.add_entity(&content, false);
+        assert!(result.ok, "Well-known instance should succeed");
+        assert_eq!(
+            result.id,
+            "gts.vendor.package.namespace.type.v1.0~instance.v1.0"
+        );
+        assert!(!result.is_schema);
+    }
+
+    #[test]
+    fn test_add_entity_accepts_anonymous_instance() {
+        // Anonymous instance with UUID in id field should succeed
+        let mut ops = GtsOps::new(None, None, 0);
+        let content = json!({
+            "id": "7a1d2f34-5678-49ab-9012-abcdef123456",
+            "type": "gts.vendor.package.namespace.type.v1.0~"
+        });
+
+        let result = ops.add_entity(&content, false);
+        assert!(result.ok, "Anonymous instance should succeed");
+        assert_eq!(result.id, "7a1d2f34-5678-49ab-9012-abcdef123456");
+        assert!(!result.is_schema);
+        assert_eq!(
+            result.schema_id,
+            Some("gts.vendor.package.namespace.type.v1.0~".to_owned())
+        );
+    }
+
+    #[test]
+    fn test_add_entity_schema_without_id_returns_error() {
+        // Schema without $id field should return error
+        let mut ops = GtsOps::new(None, None, 0);
+        let content = json!({
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object"
+        });
+
+        let result = ops.add_entity(&content, false);
+        assert!(!result.ok, "Schema without $id should fail");
+        assert!(
+            result.error.contains("Unable to detect GTS ID"),
+            "Error should mention missing GTS ID"
+        );
+    }
+
+    #[test]
+    fn test_add_entity_schema_with_valid_id_succeeds() {
+        // Schema with valid $id should succeed
+        let mut ops = GtsOps::new(None, None, 0);
+        let content = json!({
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "$id": "gts://gts.vendor.package.namespace.type.v1.0~",
+            "type": "object"
+        });
+
+        let result = ops.add_entity(&content, false);
+        assert!(result.ok, "Schema with valid $id should succeed");
+        assert_eq!(result.id, "gts.vendor.package.namespace.type.v1.0~");
+        assert!(result.is_schema);
+    }
+
+    #[test]
+    fn test_extract_id_for_well_known_instance() {
+        // extract_id should return GTS ID for well-known instance
+        let ops = GtsOps::new(None, None, 0);
+        let content = json!({
+            "id": "gts.x.core.events.type.v1~abc.app._.custom_event.v1.2"
+        });
+
+        let result = ops.extract_id(&content);
+        assert_eq!(
+            result.id,
+            "gts.x.core.events.type.v1~abc.app._.custom_event.v1.2"
+        );
+        assert!(!result.is_schema);
+        assert_eq!(
+            result.schema_id,
+            Some("gts.x.core.events.type.v1~".to_owned())
+        );
+        assert_eq!(result.selected_entity_field, Some("id".to_owned()));
+        assert_eq!(
+            result.selected_schema_id_field,
+            Some("id".to_owned()),
+            "selected_schema_id_field should be set when schema_id is derived from id"
+        );
+    }
+
+    #[test]
+    fn test_extract_id_for_anonymous_instance() {
+        // extract_id should return UUID for anonymous instance
+        let ops = GtsOps::new(None, None, 0);
+        let content = json!({
+            "id": "7a1d2f34-5678-49ab-9012-abcdef123456",
+            "type": "gts.x.core.events.type.v1~x.commerce.orders.order_placed.v1.0~"
+        });
+
+        let result = ops.extract_id(&content);
+        assert_eq!(result.id, "7a1d2f34-5678-49ab-9012-abcdef123456");
+        assert!(!result.is_schema);
+        assert_eq!(
+            result.schema_id,
+            Some("gts.x.core.events.type.v1~x.commerce.orders.order_placed.v1.0~".to_owned())
+        );
+        assert_eq!(result.selected_entity_field, Some("id".to_owned()));
+        assert_eq!(result.selected_schema_id_field, Some("type".to_owned()));
+    }
+
+    #[test]
+    fn test_extract_id_for_schema() {
+        // extract_id should return GTS ID for schema
+        let ops = GtsOps::new(None, None, 0);
+        let content = json!({
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "$id": "gts://gts.vendor.package.namespace.type.v1.0~"
+        });
+
+        let result = ops.extract_id(&content);
+        assert_eq!(result.id, "gts.vendor.package.namespace.type.v1.0~");
+        assert!(result.is_schema);
+    }
+
+    #[test]
+    fn test_extract_id_for_instance_without_id_returns_empty() {
+        // extract_id should return empty string for instance without id
+        let ops = GtsOps::new(None, None, 0);
+        let content = json!({
+            "type": "gts.vendor.package.namespace.type.v1.0~",
+            "name": "test"
+        });
+
+        let result = ops.extract_id(&content);
+        assert_eq!(result.id, "", "Should return empty string when no id found");
+        assert!(!result.is_schema);
+    }
 }

@@ -3310,4 +3310,159 @@ mod tests {
         // Just verify it doesn't panic
         let _ = result;
     }
+
+    // =============================================================================
+    // Tests for $ref validation (commit 00d298c)
+    // =============================================================================
+
+    #[test]
+    fn test_validate_schema_refs_rejects_external_ref_without_gts_prefix() {
+        // External $ref without gts:// prefix should be rejected
+        let schema = json!({
+            "$ref": "http://example.com/schema.json"
+        });
+        let result = GtsStore::validate_schema_refs(&schema, "");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("must be a local ref") || err.contains("GTS URI"),
+            "Error should mention local ref or GTS URI requirement"
+        );
+    }
+
+    #[test]
+    fn test_validate_schema_refs_rejects_malformed_gts_id_in_ref() {
+        // $ref with gts:// prefix but malformed GTS ID should be rejected
+        let schema = json!({
+            "$ref": "gts://invalid-gts-id"
+        });
+        let result = GtsStore::validate_schema_refs(&schema, "");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("invalid GTS identifier") || err.contains("contains invalid"),
+            "Error should mention invalid GTS identifier"
+        );
+    }
+
+    #[test]
+    fn test_validate_schema_refs_accepts_valid_gts_ref() {
+        // Valid $ref with gts:// prefix should be accepted
+        let schema = json!({
+            "$ref": "gts://gts.vendor.package.namespace.type.v1.0~"
+        });
+        let result = GtsStore::validate_schema_refs(&schema, "");
+        assert!(result.is_ok(), "Valid gts:// ref should be accepted");
+    }
+
+    #[test]
+    fn test_validate_schema_refs_accepts_local_json_pointer() {
+        // Local JSON Pointer refs should always be accepted
+        let schema = json!({
+            "$ref": "#/definitions/Base"
+        });
+        let result = GtsStore::validate_schema_refs(&schema, "");
+        assert!(result.is_ok(), "Local JSON Pointer ref should be accepted");
+    }
+
+    #[test]
+    fn test_validate_schema_refs_accepts_root_json_pointer() {
+        // Root JSON Pointer ref should be accepted
+        let schema = json!({
+            "$ref": "#"
+        });
+        let result = GtsStore::validate_schema_refs(&schema, "");
+        assert!(result.is_ok(), "Root JSON Pointer ref should be accepted");
+    }
+
+    #[test]
+    fn test_validate_schema_refs_rejects_gts_colon_without_slashes() {
+        // gts: (without //) should be rejected
+        let schema = json!({
+            "$ref": "gts:gts.vendor.package.namespace.type.v1.0~"
+        });
+        let result = GtsStore::validate_schema_refs(&schema, "");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("must be a local ref") || err.contains("GTS URI"),
+            "Error should mention local ref or GTS URI requirement"
+        );
+    }
+
+    #[test]
+    fn test_validate_schema_refs_deeply_nested_invalid_ref() {
+        // Invalid $ref deeply nested should report correct path
+        let schema = json!({
+            "properties": {
+                "level1": {
+                    "properties": {
+                        "level2": {
+                            "properties": {
+                                "level3": {
+                                    "$ref": "invalid-external-ref"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        let result = GtsStore::validate_schema_refs(&schema, "");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("properties.level1.properties.level2.properties.level3.$ref"),
+            "Error should report the correct nested path"
+        );
+    }
+
+    #[test]
+    fn test_validate_schema_refs_mixed_valid_and_invalid() {
+        // Schema with both valid and invalid refs should fail
+        let schema = json!({
+            "allOf": [
+                {"$ref": "gts://gts.vendor.package.namespace.base.v1.0~"},
+                {"$ref": "#/definitions/Local"},
+                {"$ref": "invalid-ref"}
+            ]
+        });
+        let result = GtsStore::validate_schema_refs(&schema, "");
+        assert!(result.is_err(), "Should fail when any ref is invalid");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("allOf[2].$ref"),
+            "Should report the invalid ref path"
+        );
+    }
+
+    #[test]
+    fn test_validate_schema_refs_empty_string() {
+        // Empty string $ref should be rejected (not a local ref, not gts://)
+        let schema = json!({
+            "$ref": ""
+        });
+        let result = GtsStore::validate_schema_refs(&schema, "");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("must be a local ref") || err.contains("GTS URI"),
+            "Error should mention local ref or GTS URI requirement"
+        );
+    }
+
+    #[test]
+    fn test_validate_schema_refs_gts_prefix_but_empty_id() {
+        // gts:// with empty ID should be rejected
+        let schema = json!({
+            "$ref": "gts://"
+        });
+        let result = GtsStore::validate_schema_refs(&schema, "");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("invalid GTS identifier") || err.contains("contains invalid"),
+            "Error should mention invalid GTS identifier"
+        );
+    }
 }
