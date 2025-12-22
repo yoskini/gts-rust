@@ -245,16 +245,21 @@ impl GtsOps {
             None,
         );
 
-        let Some(ref gts_id) = entity.gts_id else {
+        // For instances, require at least one entity_id_fields to be present
+        // (either a GTS ID for well-known instances, or a UUID/other ID for anonymous instances)
+        let Some(entity_id) = entity.effective_id() else {
             return GtsAddEntityResult {
                 ok: false,
                 id: String::new(),
                 schema_id: None,
                 is_schema: false,
-                error: "Unable to detect GTS ID in entity".to_owned(),
+                error: if entity.is_schema {
+                    "Unable to detect GTS ID in schema entity".to_owned()
+                } else {
+                    "Unable to detect ID in instance entity. Instances must have an 'id' field (or one of the configured entity_id_fields)".to_owned()
+                },
             };
         };
-        let entity_id = gts_id.id.clone();
 
         // Register the entity first
         if let Err(e) = self.store.register(entity.clone()) {
