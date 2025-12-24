@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /* ============================================================
-Runtime models with GTS schema generation
+Chained inheritance
 ============================================================ */
 
 #[struct_to_gts_schema(
@@ -63,7 +63,7 @@ pub struct PlaceOrderDataV1 {
 }
 
 /* ============================================================
-Runtime models with explicit 'base' attribute
+Chained inheritance w/o new attributes
 ============================================================ */
 
 #[struct_to_gts_schema(
