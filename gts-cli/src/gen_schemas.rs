@@ -219,11 +219,7 @@ fn parse_macro_attrs(attr_body: &str) -> Option<MacroAttrs> {
     let base_parent_re = Regex::new(r"\bbase\s*=\s*([A-Z]\w*)").ok()?;
 
     // Extract required fields
-    let dir_path = dir_path_re
-        .captures(attr_body)?
-        .get(1)?
-        .as_str()
-        .to_owned();
+    let dir_path = dir_path_re.captures(attr_body)?.get(1)?.as_str().to_owned();
     let schema_id = schema_id_re
         .captures(attr_body)?
         .get(1)?
@@ -631,7 +627,9 @@ mod tests {
             "gts.x.core.events.type.v1~"
         );
         assert_eq!(
-            derive_parent_schema_id("gts.x.core.events.type.v1~x.core.audit.event.v1~x.marketplace.orders.purchase.v1~"),
+            derive_parent_schema_id(
+                "gts.x.core.events.type.v1~x.core.audit.event.v1~x.marketplace.orders.purchase.v1~"
+            ),
             "gts.x.core.events.type.v1~x.core.audit.event.v1~"
         );
     }
