@@ -1,6 +1,6 @@
 CI := 1
 
-.PHONY: help build dev-fmt all check fmt clippy test deny security update-spec e2e
+.PHONY: help build dev-fmt all check fmt clippy test deny security update-spec e2e generate-schemas
 
 # Default target - show help
 .DEFAULT_GOAL := help
@@ -18,8 +18,12 @@ build:
 dev-fmt:
 	cargo fmt --all
 
+# Generate schemas
+generate-schemas: build
+	./target/release/gts generate-from-rust --source .
+
 # Run all checks and build
-all: check build
+all: check build generate-schemas
 
 # Check code formatting
 fmt:
