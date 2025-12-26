@@ -323,7 +323,10 @@ impl GtsID {
         // Issue #37: Single-segment instance IDs are prohibited
         // Instance IDs must be chained with at least one type segment (e.g., 'type~instance')
         // This check should only apply to non-wildcard, non-type single-segment IDs
-        if gts_id_segments.len() == 1 && !gts_id_segments[0].is_type && !gts_id_segments[0].is_wildcard {
+        if gts_id_segments.len() == 1
+            && !gts_id_segments[0].is_type
+            && !gts_id_segments[0].is_wildcard
+        {
             return Err(GtsError::InvalidId {
                 id: id.to_owned(),
                 cause: "Single-segment instance IDs are prohibited. Instance IDs must be chained with at least one type segment (e.g., 'type~instance')".to_owned(),

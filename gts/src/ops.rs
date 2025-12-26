@@ -634,9 +634,13 @@ mod tests {
     #[test]
     fn test_validate_id_valid() {
         let ops = GtsOps::new(None, None, 0);
-        let result = ops.validate_id("gts.vendor.package.namespace.type.v1.0~abc.app.custom.event.v1.0");
+        let result =
+            ops.validate_id("gts.vendor.package.namespace.type.v1.0~abc.app.custom.event.v1.0");
         assert!(result.valid);
-        assert_eq!(result.id, "gts.vendor.package.namespace.type.v1.0~abc.app.custom.event.v1.0");
+        assert_eq!(
+            result.id,
+            "gts.vendor.package.namespace.type.v1.0~abc.app.custom.event.v1.0"
+        );
     }
 
     #[test]
@@ -657,9 +661,13 @@ mod tests {
     #[test]
     fn test_parse_id_valid() {
         let ops = GtsOps::new(None, None, 0);
-        let result = ops.parse_id("gts.vendor.package.namespace.type.v1.0~abc.app.custom.event.v1.0");
+        let result =
+            ops.parse_id("gts.vendor.package.namespace.type.v1.0~abc.app.custom.event.v1.0");
         assert!(!result.segments.is_empty());
-        assert_eq!(result.id, "gts.vendor.package.namespace.type.v1.0~abc.app.custom.event.v1.0");
+        assert_eq!(
+            result.id,
+            "gts.vendor.package.namespace.type.v1.0~abc.app.custom.event.v1.0"
+        );
     }
 
     #[test]
@@ -2196,14 +2204,20 @@ mod tests {
     #[test]
     fn test_gts_ops_match_id_pattern_valid() {
         let ops = GtsOps::new(None, None, 0);
-        let result = ops.match_id_pattern("gts.vendor.package.namespace.type.v1.0~abc.app.custom.event.v1.0", "gts.vendor.*");
+        let result = ops.match_id_pattern(
+            "gts.vendor.package.namespace.type.v1.0~abc.app.custom.event.v1.0",
+            "gts.vendor.*",
+        );
         assert!(result.is_match);
     }
 
     #[test]
     fn test_gts_ops_match_id_pattern_invalid() {
         let ops = GtsOps::new(None, None, 0);
-        let result = ops.match_id_pattern("gts.vendor.package.namespace.type.v1.0~abc.app.custom.event.v1.0", "gts.other.*");
+        let result = ops.match_id_pattern(
+            "gts.vendor.package.namespace.type.v1.0~abc.app.custom.event.v1.0",
+            "gts.other.*",
+        );
         assert!(!result.is_match);
     }
 
@@ -2521,7 +2535,10 @@ mod tests {
         );
 
         let result = entity.resolve_path("user.name");
-        assert_eq!(result.gts_id, "gts.vendor.package.namespace.type.v1.0~abc.app.custom.event.v1.0");
+        assert_eq!(
+            result.gts_id,
+            "gts.vendor.package.namespace.type.v1.0~abc.app.custom.event.v1.0"
+        );
     }
 
     #[test]

@@ -674,7 +674,10 @@ mod tests {
         );
 
         // The query pattern matches 3-segment IDs, so it should only find the instance, not the 2-segment schema
-        assert_eq!(query_result.count, 1, "Query should find one result (the instance)");
+        assert_eq!(
+            query_result.count, 1,
+            "Query should find one result (the instance)"
+        );
         assert_eq!(
             query_result.results.len(),
             1,
