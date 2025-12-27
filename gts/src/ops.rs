@@ -3002,7 +3002,10 @@ mod tests {
         });
 
         let result = ops.add_entity(&content, false);
-        assert!(!result.ok, "Schema with plain gts. prefix in $id should fail");
+        assert!(
+            !result.ok,
+            "Schema with plain gts. prefix in $id should fail"
+        );
         assert!(
             result.error.contains("Unable to detect GTS ID"),
             "Error should mention missing GTS ID, got: {}",
@@ -3046,7 +3049,11 @@ mod tests {
         });
 
         let result = ops.add_entity(&content, false);
-        assert!(result.ok, "Schema with gts:// URI prefix should succeed, got error: {}", result.error);
+        assert!(
+            result.ok,
+            "Schema with gts:// URI prefix should succeed, got error: {}",
+            result.error
+        );
         assert_eq!(result.id, "gts.x.test6.valid_id.with_uri.v1~");
         assert!(result.is_schema);
     }
