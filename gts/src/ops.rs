@@ -511,7 +511,7 @@ impl GtsOps {
         match (candidate_result, pattern_result) {
             (Ok((c_id, c_segments)), Ok((p_id, p_segments))) => {
                 let c = GtsID {
-                    id: c_id.clone(),
+                    id: c_id,
                     gts_id_segments: c_segments,
                 };
                 let p = GtsWildcard {
@@ -530,13 +530,13 @@ impl GtsOps {
                 candidate: candidate.to_owned(),
                 pattern: pattern.to_owned(),
                 is_match: false,
-                error: format!("Invalid candidate: {}", e),
+                error: format!("Invalid candidate: {e}"),
             },
             (_, Err(e)) => GtsIdMatchResult {
                 candidate: candidate.to_owned(),
                 pattern: pattern.to_owned(),
                 is_match: false,
-                error: format!("Invalid pattern: {}", e),
+                error: format!("Invalid pattern: {e}"),
             },
         }
     }
