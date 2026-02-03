@@ -1,0 +1,8 @@
+error[E0599]: no method named `gts_instance_json` found for struct `NestedPayloadV1` in the current scope
+  --> tests/compile_fail/nested_type_no_instance_json.rs:46:20
+   |
+33 | pub struct NestedPayloadV1 {
+   | -------------------------- method `gts_instance_json` not found for this struct
+...
+46 |     let _ = nested.gts_instance_json();
+   |                    ^^^^^^^^^^^^^^^^^ method not found in `NestedPayloadV1`

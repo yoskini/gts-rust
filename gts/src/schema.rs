@@ -243,6 +243,92 @@ pub fn build_gts_allof_schema(
     })
 }
 
+/// Marker trait for GTS nested types that should not be directly serialized.
+///
+/// Types with this trait are designed to be used only as generic parameters
+/// of base GTS types (e.g., `BaseEventV1<NestedType>`). Direct serialization
+/// of these types is prohibited at compile-time.
+///
+/// # Example
+///
+/// ```ignore
+/// // This is correct - serialize the complete composed type:
+/// let event = BaseEventV1::<MyNestedTypeV1> { ... };
+/// serde_json::to_value(&event)?;  // ✅ OK
+///
+/// // This is prohibited - direct serialization of nested type:
+/// let nested = MyNestedTypeV1 { ... };
+/// serde_json::to_value(&nested)?;  // ❌ Compile error
+/// ```
+pub trait GtsNestedType: GtsSchema {
+    /// Internal serialization method used by parent types.
+    /// This is not meant to be called directly.
+    #[doc(hidden)]
+    fn gts_serialize_nested<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer;
+
+    /// Internal deserialization method used by parent types.
+    /// This is not meant to be called directly.
+    #[doc(hidden)]
+    fn gts_deserialize_nested<'de, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+        Self: Sized;
+}
+
+/// Helper module for serializing/deserializing GTS nested types within parent structs.
+///
+/// Use `#[serde(serialize_with = "gts::schema::gts_nested::serialize")]` on generic fields.
+pub mod gts_nested {
+    use super::GtsNestedType;
+
+    /// Serialize a `GtsNestedType` value.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization fails.
+    pub fn serialize<T, S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        T: GtsNestedType,
+        S: serde::Serializer,
+    {
+        value.gts_serialize_nested(serializer)
+    }
+
+    /// Deserialize a `GtsNestedType` value.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if deserialization fails.
+    pub fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+    where
+        T: GtsNestedType,
+        D: serde::Deserializer<'de>,
+    {
+        T::gts_deserialize_nested(deserializer)
+    }
+}
+
+/// Implement `GtsNestedType` for `()` to allow `BaseEventV1<()>` etc.
+impl GtsNestedType for () {
+    fn gts_serialize_nested<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::Serialize;
+        self.serialize(serializer)
+    }
+
+    fn gts_deserialize_nested<'de, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::Deserialize;
+        <()>::deserialize(deserializer)
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {

@@ -2754,4 +2754,135 @@ mod tests {
             "inner_data.properties should have 'content_value'"
         );
     }
+
+    /// Test that base types have `gts_instance_json` methods
+    /// This is the correct way to serialize GTS instances
+    #[test]
+    fn test_base_type_has_instance_json_methods() {
+        // BaseEventV1 is a base type (base = true), so it should have gts_instance_json methods
+        let event = BaseEventV1 {
+            event_type: SimplePayloadV1::gts_schema_id().clone(),
+            id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap(),
+            tenant_id: Uuid::parse_str("660e8400-e29b-41d4-a716-446655440000").unwrap(),
+            sequence_id: 1,
+            payload: SimplePayloadV1 {
+                message: "test".to_string(),
+                severity: 5,
+            },
+        };
+
+        // These methods should exist and work on base types
+        let json_value = event.gts_instance_json();
+        assert_eq!(json_value["sequence_id"], 1);
+        assert_eq!(json_value["payload"]["message"], "test");
+        assert_eq!(json_value["payload"]["severity"], 5);
+
+        let json_string = event.gts_instance_json_as_string();
+        assert!(json_string.contains("\"message\":\"test\""));
+
+        let json_pretty = event.gts_instance_json_as_string_pretty();
+        assert!(json_pretty.contains("\"message\": \"test\""));
+    }
+
+    /// Test that nested types can be serialized through their parent
+    /// This is the correct pattern: serialize the complete composed type
+    #[test]
+    fn test_nested_type_serialization_through_parent() {
+        // Create a nested type instance
+        let nested_payload = SimplePayloadV1 {
+            message: "nested message".to_string(),
+            severity: 10,
+        };
+
+        // The correct way to serialize: wrap in parent and use parent's methods
+        let event = BaseEventV1 {
+            event_type: SimplePayloadV1::gts_schema_id().clone(),
+            id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap(),
+            tenant_id: Uuid::parse_str("660e8400-e29b-41d4-a716-446655440000").unwrap(),
+            sequence_id: 42,
+            payload: nested_payload,
+        };
+
+        // Serialize the complete event (parent with nested payload)
+        let json = event.gts_instance_json();
+
+        // Verify the nested payload is correctly serialized within the parent
+        assert_eq!(json["payload"]["message"], "nested message");
+        assert_eq!(json["payload"]["severity"], 10);
+        assert_eq!(json["sequence_id"], 42);
+    }
+
+    /// Test three-level nesting serialization works correctly
+    /// `BaseEventV1<AuditPayloadV1<PlaceOrderDataV1>>`
+    #[test]
+    fn test_three_level_nested_serialization() {
+        let event = BaseEventV1 {
+            event_type: PlaceOrderDataV1::gts_schema_id().clone(),
+            id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap(),
+            tenant_id: Uuid::parse_str("660e8400-e29b-41d4-a716-446655440000").unwrap(),
+            sequence_id: 100,
+            payload: AuditPayloadV1 {
+                user_agent: "TestAgent/1.0".to_string(),
+                user_id: Uuid::parse_str("770e8400-e29b-41d4-a716-446655440000").unwrap(),
+                ip_address: "10.0.0.1".to_string(),
+                data: PlaceOrderDataV1 {
+                    order_id: Uuid::parse_str("880e8400-e29b-41d4-a716-446655440000").unwrap(),
+                    product_id: Uuid::parse_str("990e8400-e29b-41d4-a716-446655440000").unwrap(),
+                },
+            },
+        };
+
+        // Serialize the complete three-level nested structure
+        let json = event.gts_instance_json();
+
+        // Verify all levels are correctly serialized
+        assert_eq!(json["sequence_id"], 100);
+        assert_eq!(json["payload"]["user_agent"], "TestAgent/1.0");
+        assert_eq!(json["payload"]["ip_address"], "10.0.0.1");
+        assert_eq!(
+            json["payload"]["data"]["order_id"],
+            "880e8400-e29b-41d4-a716-446655440000"
+        );
+        assert_eq!(
+            json["payload"]["data"]["product_id"],
+            "990e8400-e29b-41d4-a716-446655440000"
+        );
+    }
+
+    /// Test that `TopicV1` (another base type) has instance json methods
+    #[test]
+    fn test_topic_base_type_has_instance_json_methods() {
+        let topic = TopicV1 {
+            id: GtsInstanceId::new("gts.x.core.events.topic.v1~", "orders-topic"),
+            name: "orders".to_string(),
+            description: Some("Order events topic".to_string()),
+            config: OrderTopicConfigV1 {},
+        };
+
+        // TopicV1 is a base type, so it should have gts_instance_json methods
+        let json = topic.gts_instance_json();
+        assert_eq!(json["name"], "orders");
+        assert_eq!(json["description"], "Order events topic");
+
+        let json_string = topic.gts_instance_json_as_string();
+        assert!(json_string.contains("\"name\":\"orders\""));
+    }
+
+    /// Test that `GtsNestedType` trait is implemented for all GTS types
+    #[test]
+    fn test_gts_nested_type_trait_implemented() {
+        use gts::GtsNestedType;
+
+        // Base types implement GtsNestedType
+        fn assert_nested_type<T: GtsNestedType>() {}
+
+        assert_nested_type::<BaseEventV1<SimplePayloadV1>>();
+        assert_nested_type::<TopicV1<OrderTopicConfigV1>>();
+
+        // Nested types also implement GtsNestedType
+        assert_nested_type::<SimplePayloadV1>();
+        assert_nested_type::<AuditPayloadV1<PlaceOrderDataV1>>();
+        assert_nested_type::<PlaceOrderDataV1>();
+        assert_nested_type::<OrderTopicConfigV1>();
+    }
 }
